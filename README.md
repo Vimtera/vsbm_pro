@@ -172,5 +172,3 @@ This project is open‑sourced under the **MIT License** – you are free to use
 ```
 
 ---
-
-复制上述内容，保存为 README.md 即可。顶部语言切换链接有效，截图引用已移除，所有内容已双语分区呈现。
