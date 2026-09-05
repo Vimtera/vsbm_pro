@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="user-scalable=no, width=device-width, initial-scale=1.0">
+    <title>🍄 毒蘑菇 · 性能监测 + 导出</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            background: #0b0910;
+            overflow: hidden;
+            font-family: 'Segoe UI', 'PingFang SC', Roboto, system-ui, sans-serif;
+            touch-action: none;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #main {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            transform-origin: 0 0;
+            z-index: 1;
+            pointer-events: none;
+        }
+        #main canvas {
+            display: block;
+            width: 1024px;
+            height: 1024px;
+            background: #fbf7fe;
+            pointer-events: auto;
+            touch-action: none;
+        }
+
+        #btn {
+            position: fixed;
+            left: 18px;
+            top: 18px;
+            z-index: 30;
+            background: rgba(10, 8, 14, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.6);
+            padding: 8px 18px;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            letter-spacing: 0.3px;
+            font-family: inherit;
+            pointer-events: auto;
+        }
+        #btn:hover {
+            background: rgba(30, 26, 42, 0.85);
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+        #btn:active {
+            transform: scale(0.95);
+        }
+
+        #config {
+            position: fixed;
+            left: 18px;
+            top: 68px;
+            z-index: 30;
+            background: rgba(10, 8, 14, 0.88);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 16px 18px;
+            display: none;
+            min-width: 380px;
+            max-width: 92vw;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+            pointer-events: auto;
+        }
+        #config textarea {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
+            color: #d4d0e0;
+            font-size: 13px;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            padding: 10px 12px;
+            resize: vertical;
+            min-height: 120px;
+            outline: none;
+            transition: border-color 0.2s;
+            line-height: 1.5;
+            tab-size: 2;
+        }
+        #config textarea:focus {
+            border-color: rgba(124, 255, 178, 0.3);
+        }
+        #config .config-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+            justify-content: flex-end;
+        }
+        #config .config-actions button {
+            padding: 6px 22px;
+            border-radius: 30px;
+            border: none;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+            background: rgba(255, 255, 255, 0.06);
+            color: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+        #config .config-actions button:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+        }
+        #config .config-actions #apply {
+            background: rgba(124, 255, 178, 0.12);
+            color: #7cffb2;
+            border-color: rgba(124, 255, 178, 0.15);
+        }
+        #config .config-actions #apply:hover {
+            background: rgba(124, 255, 178, 0.2);
+        }
+        #config .config-actions #cancle {
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        /* ===== 底部性能面板 ===== */
+        #perf-panel {
+            position: fixed;
+            left: 16px;
+            right: 16px;
+            bottom: 16px;
+            z-index: 20;
+            background: rgba(8, 6, 14, 0.78);
+            backdrop-filter: blur(18px) saturate(1.3);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 18px;
+            padding: 14px 20px 12px;
+            color: #e8e4f0;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+            pointer-events: none;
+            max-height: 240px;
+            display: flex;
+            flex-direction: column;
+        }
+        #perf-panel * {
+            pointer-events: auto;
+        }
+
+        .perf-top {
+            display: flex;
+            align-items: stretch;
+            gap: 14px;
+            flex: 1;
+            min-height: 56px;
+        }
+
+        .fps-stats {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            flex-shrink: 0;
+            padding-right: 14px;
+            border-right: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .fps-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .fps-item .label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: rgba(255, 255, 255, 0.3);
+            font-weight: 500;
+        }
+        .fps-item .value {
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            line-height: 1.2;
+            font-size: 20px;
+            letter-spacing: 0.2px;
+        }
+        .fps-item .value.fps-current {
+            color: #7cffb2;
+            font-size: 28px;
+            text-shadow: 0 0 30px rgba(124, 255, 178, 0.15);
+        }
+        .fps-item .value.fps-avg {
+            color: #7cc8ff;
+        }
+        .fps-item .value.fps-min {
+            color: #ff7c9e;
+        }
+
+        .fps-chart-wrap {
+            flex: 1;
+            min-width: 80px;
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        #fps-chart {
+            display: block;
+            width: 100%;
+            height: 56px;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        .perf-bottom {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px solid rgba(255, 255, 255, 0.04);
+            flex-shrink: 0;
+            flex-wrap: wrap;
+            gap: 6px 12px;
+        }
+        .perf-bottom .left-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        #device-toggle {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.25);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: color 0.2s;
+            user-select: none;
+            padding: 2px 6px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+        #device-toggle:hover {
+            color: rgba(255, 255, 255, 0.55);
+            background: rgba(255, 255, 255, 0.04);
+        }
+        #device-toggle .arrow {
+            display: inline-block;
+            transition: transform 0.3s ease;
+            font-size: 9px;
+        }
+        #device-toggle .arrow.open {
+            transform: rotate(90deg);
+        }
+
+        #export-btn {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+            padding: 2px 10px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+        #export-btn:hover {
+            color: #7cffb2;
+            background: rgba(124, 255, 178, 0.08);
+            border-color: rgba(124, 255, 178, 0.15);
+        }
+
+        .perf-hint {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.15);
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+        }
+
+        #device-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px 16px;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.35s ease, opacity 0.3s ease, margin 0.3s ease;
+            opacity: 0;
+            margin-top: 0;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.4);
+            line-height: 1.6;
+            width: 100%;
+        }
+        #device-info.open {
+            max-height: 120px;
+            opacity: 1;
+            margin-top: 4px;
+        }
+        #device-info .di-row {
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+        }
+        #device-info .di-row .di-label {
+            color: rgba(255, 255, 255, 0.2);
+            font-weight: 400;
+        }
+        #device-info .di-row .di-value {
+            color: rgba(255, 255, 255, 0.55);
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 700px) {
+            #perf-panel {
+                left: 10px;
+                right: 10px;
+                bottom: 10px;
+                padding: 10px 12px 10px;
+                border-radius: 14px;
+                max-height: 200px;
+            }
+            .perf-top {
+                gap: 10px;
+                min-height: 44px;
+            }
+            .fps-stats {
+                gap: 10px;
+                padding-right: 10px;
+            }
+            .fps-item .value {
+                font-size: 16px;
+            }
+            .fps-item .value.fps-current {
+                font-size: 22px;
+            }
+            .fps-item .label {
+                font-size: 9px;
+            }
+            #fps-chart {
+                height: 44px;
+            }
+            #device-info {
+                font-size: 10px;
+                gap: 2px 12px;
+            }
+            #device-info .di-row .di-value {
+                max-width: 100px;
+            }
+            #config {
+                left: 10px;
+                top: 60px;
+                min-width: unset;
+                width: calc(100vw - 20px);
+                padding: 12px 14px;
+            }
+            #config textarea {
+                font-size: 12px;
+                min-height: 80px;
+            }
+            #btn {
+                left: 10px;
+                top: 10px;
+                font-size: 12px;
+                padding: 6px 14px;
+            }
+            .perf-hint {
+                display: none;
+            }
+            .perf-bottom .left-group {
+                gap: 8px;
+            }
+            #export-btn {
+                font-size: 10px;
+                padding: 2px 8px;
+            }
+        }
+        @media (max-width: 440px) {
+            #perf-panel {
+                padding: 8px 8px 8px;
+                border-radius: 12px;
+                left: 6px;
+                right: 6px;
+                bottom: 6px;
+                max-height: 170px;
+            }
+            .perf-top {
+                gap: 6px;
+                min-height: 36px;
+            }
+            .fps-stats {
+                gap: 6px;
+                padding-right: 6px;
+            }
+            .fps-item .value {
+                font-size: 13px;
+            }
+            .fps-item .value.fps-current {
+                font-size: 18px;
+            }
+            .fps-item .label {
+                font-size: 8px;
+            }
+            #fps-chart {
+                height: 36px;
+            }
+            #device-toggle {
+                font-size: 10px;
+            }
+            #device-info {
+                font-size: 9px;
+            }
+            #device-info .di-row .di-value {
+                max-width: 70px;
+            }
+        }
+        @media (max-height: 500px) {
+            #perf-panel {
+                max-height: 140px;
+                padding: 6px 10px 6px;
+            }
+            .perf-top {
+                min-height: 32px;
+            }
+            #fps-chart {
+                height: 32px;
+            }
+            .fps-item .value {
+                font-size: 13px;
+            }
+            .fps-item .value.fps-current {
+                font-size: 18px;
+            }
+            #device-info.open {
+                max-height: 80px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== 毒蘑菇渲染 ===== -->
+    <div id="main">
+        <canvas id="c1" width="1024" height="1024">
+            <span>不支持 canvas</span>
+        </canvas>
+    </div>
+
+    <!-- ===== CONFIG ===== -->
+    <button id="btn">⚙ CONFIG</button>
+    <div id="config">
+        <textarea id="kernel" cols="30" rows="10"></textarea>
+        <div class="config-actions">
+            <button id="cancle">取消</button>
+            <button id="apply">✔ 应用</button>
+        </div>
+    </div>
+
+    <!-- ===== 底部性能面板 ===== -->
+    <div id="perf-panel">
+        <div class="perf-top">
+            <div class="fps-stats">
+                <div class="fps-item">
+                    <span class="label">实时</span>
+                    <span class="value fps-current" id="fps-current">--</span>
+                </div>
+                <div class="fps-item">
+                    <span class="label">平均</span>
+                    <span class="value fps-avg" id="fps-avg">--</span>
+                </div>
+                <div class="fps-item">
+                    <span class="label">最低</span>
+                    <span class="value fps-min" id="fps-min">--</span>
+                </div>
+            </div>
+            <div class="fps-chart-wrap">
+                <canvas id="fps-chart"></canvas>
+            </div>
+            <span class="perf-hint">🍄 拖拽旋转 · 滚轮缩放</span>
+        </div>
+
+        <div class="perf-bottom">
+            <div class="left-group">
+                <div id="device-toggle">
+                    <span class="arrow" id="dev-arrow">▶</span> 设备信息
+                </div>
+                <button id="export-btn">📥 导出数据</button>
+            </div>
+            <div style="font-size:10px; color:rgba(255,255,255,0.12);">毒蘑菇 · GPU 压测</div>
+        </div>
+
+        <div id="device-info">
+            <div class="di-row"><span class="di-label">浏览器</span><span class="di-value" id="di-browser">--</span></div>
+            <div class="di-row"><span class="di-label">系统</span><span class="di-value" id="di-os">--</span></div>
+            <div class="di-row"><span class="di-label">GPU</span><span class="di-value" id="di-gpu">--</span></div>
+            <div class="di-row"><span class="di-label">CPU</span><span class="di-value" id="di-cpu">--</span></div>
+            <div class="di-row"><span class="di-label">内存</span><span class="di-value" id="di-ram">--</span></div>
+            <div class="di-row"><span class="di-label">屏幕</span><span class="di-value" id="di-screen">--</span></div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        //  毒蘑菇渲染核心
+        // ============================================================
+
+        var cx, cy;
+        var glposition, glright, glforward, glup, glorigin, glx, gly, gllen;
+        var canvas, gl;
+        var date = new Date();
+        var t2,
+            t1 = date.getTime();
+        var mx = 0,
+            my = 0,
+            mx1 = 0,
+            my1 = 0,
+            lasttimen = 0;
+        var ml = 0,
+            mr = 0,
+            mm = 0;
+        var len = 1.6;
+        var ang1 = 2.8;
+        var ang2 = 0.4;
+        var cenx = 0.0,
+            ceny = 0.0,
+            cenz = 0.0;
+
+        var KERNEL =
+            "float kernal(vec3 ver){\n" +
+            "   vec3 a;\n" +
+            "float b,c,d,e;\n" +
+            "   a=ver;\n" +
+            "   for(int i=0;i<5;i++){\n" +
+            "       b=length(a);\n" +
+            "       c=atan(a.y,a.x)*8.0;\n" +
+            "       e=1.0/b;\n" +
+            "       d=acos(a.z/b)*8.0;\n" +
+            "       b=pow(b,8.0);\n" +
+            "       a=vec3(b*sin(d)*cos(c),b*sin(d)*sin(c),b*cos(d))+ver;\n" +
+            "       if(b>6.0){\n" +
+            "           break;\n" +
+            "       }\n" +
+            "   }" +
+            "   return 4.0-a.x*a.x-a.y*a.y-a.z*a.z;" +
+            "}";
+
+        var vertshade, fragshader, shaderProgram;
+
+        // ---- 交互 ----
+        document.addEventListener("mousedown", function(ev) {
+            var oEvent = ev || event;
+            if (oEvent.button == 0) { ml = 1;
+                mm = 0; }
+            if (oEvent.button == 2) { mr = 1;
+                mm = 0; }
+            mx = oEvent.clientX;
+            my = oEvent.clientY;
+        }, false);
+        document.addEventListener("mouseup", function(ev) {
+            var oEvent = ev || event;
+            if (oEvent.button == 0) ml = 0;
+            if (oEvent.button == 2) mr = 0;
+        }, false);
+        document.addEventListener("mousemove", function(ev) {
+            var oEvent = ev || event;
+            if (ml == 1) {
+                ang1 += (oEvent.clientX - mx) * 0.002;
+                ang2 += (oEvent.clientY - my) * 0.002;
+                if (oEvent.clientX != mx || oEvent.clientY != my) mm = 1;
+            }
+            if (mr == 1) {
+                var l = len * 4.0 / (cx + cy);
+                cenx += l * (-(oEvent.clientX - mx) * Math.sin(ang1) - (oEvent.clientY - my) * Math.sin(ang2) * Math.cos(
+                    ang1));
+                ceny += l * ((oEvent.clientY - my) * Math.cos(ang2));
+                cenz += l * ((oEvent.clientX - mx) * Math.cos(ang1) - (oEvent.clientY - my) * Math.sin(ang2) * Math.sin(
+                    ang1));
+                if (oEvent.clientX != mx || oEvent.clientY != my) mm = 1;
+            }
+            mx = oEvent.clientX;
+            my = oEvent.clientY;
+        }, false);
+        document.addEventListener("mousewheel", function(ev) {
+            ev.preventDefault();
+            var oEvent = ev || event;
+            len *= Math.exp(-0.001 * oEvent.wheelDelta);
+        }, false);
+
+        document.addEventListener("touchstart", function(ev) {
+            var n = ev.touches.length;
+            if (n == 1) { var oEvent = ev.touches[0];
+                mx = oEvent.clientX;
+                my = oEvent.clientY; } else if (n == 2) { var oEvent = ev.touches[0];
+                mx = oEvent.clientX;
+                my = oEvent.clientY;
+                oEvent = ev.touches[1];
+                mx1 = oEvent.clientX;
+                my1 = oEvent.clientY; }
+            lasttimen = n;
+        }, false);
+        document.addEventListener("touchend", function(ev) {
+            var n = ev.touches.length;
+            if (n == 1) { var oEvent = ev.touches[0];
+                mx = oEvent.clientX;
+                my = oEvent.clientY; } else if (n == 2) { var oEvent = ev.touches[0];
+                mx = oEvent.clientX;
+                my = oEvent.clientY;
+                oEvent = ev.touches[1];
+                mx1 = oEvent.clientX;
+                my1 = oEvent.clientY; }
+            lasttimen = n;
+        }, false);
+        document.addEventListener("touchmove", function(ev) {
+            ev.preventDefault();
+            var n = ev.touches.length;
+            if (n == 1 && lasttimen == 1) {
+                var oEvent = ev.touches[0];
+                ang1 += (oEvent.clientX - mx) * 0.002;
+                ang2 += (oEvent.clientY - my) * 0.002;
+                mx = oEvent.clientX;
+                my = oEvent.clientY;
+            } else if (n == 2) {
+                var oEvent = ev.touches[0];
+                var oEvent1 = ev.touches[1];
+                var l = len * 2.0 / (cx + cy),
+                    l1;
+                cenx += l * (-(oEvent.clientX + oEvent1.clientX - mx - mx1) * Math.sin(ang1) - (oEvent.clientY + oEvent1
+                    .clientY - my - my1) * Math.sin(ang2) * Math.cos(ang1));
+                ceny += l * ((oEvent.clientY + oEvent1.clientY - my - my1) * Math.cos(ang2));
+                cenz += l * ((oEvent.clientX + oEvent1.clientX - mx - mx1) * Math.cos(ang1) - (oEvent.clientY + oEvent1
+                    .clientY - my - my1) * Math.sin(ang2) * Math.sin(ang1));
+                l1 = Math.sqrt((mx - mx1) * (mx - mx1) + (my - my1) * (my - my1) + 1.0);
+                mx = oEvent.clientX;
+                my = oEvent.clientY;
+                mx1 = oEvent1.clientX;
+                my1 = oEvent1.clientY;
+                l = Math.sqrt((mx - mx1) * (mx - mx1) + (my - my1) * (my - my1) + 1.0);
+                len *= l1 / l;
+            }
+            lasttimen = n;
+        }, false);
+        document.oncontextmenu = function(event) {
+            if (mm == 1) event.preventDefault();
+        };
+
+        // ---- 渲染 ----
+        function draw() {
+            date = new Date();
+            t1 = date.getTime();
+            gl.uniform1f(glx, cx * 2.0 / (cx + cy));
+            gl.uniform1f(gly, cy * 2.0 / (cx + cy));
+            gl.uniform1f(gllen, len);
+            gl.uniform3f(glorigin, len * Math.cos(ang1) * Math.cos(ang2) + cenx, len * Math.sin(ang2) + ceny, len * Math
+                .sin(ang1) * Math.cos(ang2) + cenz);
+            gl.uniform3f(glright, Math.sin(ang1), 0, -Math.cos(ang1));
+            gl.uniform3f(glup, -Math.sin(ang2) * Math.cos(ang1), Math.cos(ang2), -Math.sin(ang2) * Math.sin(ang1));
+            gl.uniform3f(glforward, -Math.cos(ang1) * Math.cos(ang2), -Math.sin(ang2), -Math.sin(ang1) * Math.cos(ang2));
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+            gl.finish();
+        }
+
+        // ============================================================
+        //  性能监测模块
+        // ============================================================
+
+        var fpsHistory = [];
+        var MAX_HISTORY = 240;
+        var fpsSum = 0,
+            fpsCount = 0,
+            fpsMin = Infinity;
+        var lastFrameTime = performance.now();
+        var perfFrameCount = 0;
+        var fpsDisplay = 0,
+            fpsAvgDisplay = 0,
+            fpsMinDisplay = 0;
+
+        var fpsCurrentEl = document.getElementById('fps-current');
+        var fpsAvgEl = document.getElementById('fps-avg');
+        var fpsMinEl = document.getElementById('fps-min');
+        var chartCanvas = document.getElementById('fps-chart');
+        var chartCtx = chartCanvas.getContext('2d');
+        var deviceToggle = document.getElementById('device-toggle');
+        var deviceInfo = document.getElementById('device-info');
+        var devArrow = document.getElementById('dev-arrow');
+        var exportBtn = document.getElementById('export-btn');
+
+        // ---- 设备信息 ----
+        function collectDeviceInfo() {
+            var ua = navigator.userAgent;
+            var browser = '--',
+                os = '--';
+            if (ua.indexOf('Chrome') > -1 && ua.indexOf('Edg') === -1) {
+                var m = ua.match(/Chrome\/(\d+)/);
+                browser = 'Chrome ' + (m ? m[1] : '');
+            } else if (ua.indexOf('Firefox') > -1) {
+                var m = ua.match(/Firefox\/(\d+)/);
+                browser = 'Firefox ' + (m ? m[1] : '');
+            } else if (ua.indexOf('Safari') > -1 && ua.indexOf('Chrome') === -1) {
+                var m = ua.match(/Version\/(\d+)/);
+                browser = 'Safari ' + (m ? m[1] : '');
+            } else if (ua.indexOf('Edg') > -1) {
+                var m = ua.match(/Edg\/(\d+)/);
+                browser = 'Edge ' + (m ? m[1] : '');
+            } else {
+                browser = ua.split(' ')[0] || '--';
+            }
+            if (ua.indexOf('Windows') > -1) os = 'Windows';
+            else if (ua.indexOf('Mac') > -1) os = 'macOS';
+            else if (ua.indexOf('Linux') > -1) os = 'Linux';
+            else if (ua.indexOf('Android') > -1) os = 'Android';
+            else if (ua.indexOf('iPhone') > -1 || ua.indexOf('iPad') > -1) os = 'iOS';
+            else os = '--';
+
+            var gpu = '--';
+            try {
+                var ext = gl.getExtension('WEBGL_debug_renderer_info');
+                if (ext) {
+                    var renderer = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL);
+                    if (renderer) {
+                        gpu = renderer;
+                        if (gpu.length > 50) gpu = gpu.substring(0, 47) + '…';
+                    }
+                }
+            } catch (e) {}
+
+            var cpu = navigator.hardwareConcurrency ? navigator.hardwareConcurrency + ' 核' : '--';
+            var ram = '--';
+            if (navigator.deviceMemory) ram = navigator.deviceMemory + ' GB';
+            var screen = window.screen.width + '×' + window.screen.height;
+
+            document.getElementById('di-browser').textContent = browser;
+            document.getElementById('di-os').textContent = os;
+            document.getElementById('di-gpu').textContent = gpu;
+            document.getElementById('di-cpu').textContent = cpu;
+            document.getElementById('di-ram').textContent = ram;
+            document.getElementById('di-screen').textContent = screen;
+        }
+
+        // ---- 设备信息折叠 ----
+        var devOpen = false;
+        deviceToggle.addEventListener('click', function() {
+            devOpen = !devOpen;
+            deviceInfo.classList.toggle('open', devOpen);
+            devArrow.classList.toggle('open', devOpen);
+        });
+
+        // ---- 曲线图尺寸 ----
+        function resizeChart() {
+            var rect = chartCanvas.parentElement.getBoundingClientRect();
+            var w = rect.width - 2;
+            var h = chartCanvas.parentElement.clientHeight || 56;
+            var dpr = 1;
+            chartCanvas.width = w * dpr;
+            chartCanvas.height = h * dpr;
+            chartCanvas.style.width = w + 'px';
+            chartCanvas.style.height = h + 'px';
+            chartCtx.scale(dpr, dpr);
+            chartCtx.imageSmoothingEnabled = true;
+        }
+
+        // ---- 绘制曲线 ----
+        function drawChart() {
+            var w = chartCanvas.width / (chartCanvas.width / parseFloat(chartCanvas.style.width) || 1);
+            var h = chartCanvas.height / (chartCanvas.height / parseFloat(chartCanvas.style.height) || 1);
+            var ctx = chartCtx;
+            ctx.clearRect(0, 0, w, h);
+
+            var data = fpsHistory;
+            if (data.length < 2) {
+                ctx.fillStyle = 'rgba(255,255,255,0.10)';
+                ctx.font = '11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('等待数据…', w / 2, h / 2);
+                return;
+            }
+
+            var maxVal = Math.max(60, ...data) * 1.12;
+            var minVal = Math.max(0, Math.min(...data) * 0.85);
+            var range = maxVal - minVal || 1;
+
+            ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+            ctx.lineWidth = 0.5;
+            for (var i = 0; i <= 4; i++) {
+                var y = h - (i / 4) * h;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+            }
+
+            var gradient = ctx.createLinearGradient(0, 0, 0, h);
+            gradient.addColorStop(0, 'rgba(124, 255, 178, 0.85)');
+            gradient.addColorStop(0.5, 'rgba(124, 255, 178, 0.5)');
+            gradient.addColorStop(1, 'rgba(124, 255, 178, 0.10)');
+
+            ctx.beginPath();
+            var step = w / (data.length - 1);
+            for (var i = 0; i < data.length; i++) {
+                var x = i * step;
+                var y = h - ((data[i] - minVal) / range) * h * 0.88 - h * 0.06;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.strokeStyle = '#7cffb2';
+            ctx.lineWidth = 1.8;
+            ctx.shadowColor = 'rgba(124,255,178,0.15)';
+            ctx.shadowBlur = 6;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            var lastX = (data.length - 1) * step;
+            ctx.lineTo(lastX, h);
+            ctx.lineTo(0, h);
+            ctx.closePath();
+            ctx.fillStyle = gradient;
+            ctx.fill();
+
+            if (data.length > 0) {
+                var lastVal = data[data.length - 1];
+                var lx = (data.length - 1) * step;
+                var ly = h - ((lastVal - minVal) / range) * h * 0.88 - h * 0.06;
+                ctx.beginPath();
+                ctx.arc(lx, ly, 3.5, 0, Math.PI * 2);
+                ctx.fillStyle = '#7cffb2';
+                ctx.shadowColor = 'rgba(124,255,178,0.4)';
+                ctx.shadowBlur = 10;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+            var refY = h - ((60 - minVal) / range) * h * 0.88 - h * 0.06;
+            if (refY > 2 && refY < h - 2) {
+                ctx.setLineDash([2, 4]);
+                ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+                ctx.lineWidth = 0.6;
+                ctx.beginPath();
+                ctx.moveTo(0, refY);
+                ctx.lineTo(w, refY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = 'rgba(255,255,255,0.10)';
+                ctx.font = '7px sans-serif';
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText('60', w - 2, refY - 2);
+            }
+        }
+
+        // ---- 更新FPS ----
+        function updateFPS(currentFPS) {
+            if (currentFPS <= 0) return;
+            fpsHistory.push(currentFPS);
+            if (fpsHistory.length > MAX_HISTORY) fpsHistory.shift();
+
+            fpsSum += currentFPS;
+            fpsCount++;
+            if (currentFPS < fpsMin) fpsMin = currentFPS;
+
+            fpsDisplay = currentFPS;
+            fpsAvgDisplay = fpsSum / fpsCount;
+            fpsMinDisplay = fpsMin;
+
+            fpsCurrentEl.textContent = Math.round(currentFPS) + ' FPS';
+            fpsAvgEl.textContent = Math.round(fpsAvgDisplay) + ' FPS';
+            fpsMinEl.textContent = Math.round(fpsMinDisplay) + ' FPS';
+
+            if (currentFPS >= 55) fpsCurrentEl.style.color = '#7cffb2';
+            else if (currentFPS >= 30) fpsCurrentEl.style.color = '#ffd97c';
+            else fpsCurrentEl.style.color = '#ff7c9e';
+
+            drawChart();
+        }
+
+        function resetStats() {
+            fpsHistory = [];
+            fpsSum = 0;
+            fpsCount = 0;
+            fpsMin = Infinity;
+            fpsDisplay = 0;
+            fpsAvgDisplay = 0;
+            fpsMinDisplay = 0;
+            fpsCurrentEl.textContent = '--';
+            fpsAvgEl.textContent = '--';
+            fpsMinEl.textContent = '--';
+            fpsCurrentEl.style.color = '#7cffb2';
+            drawChart();
+        }
+
+        // ============================================================
+        //  导出数据功能
+        // ============================================================
+        function exportData() {
+            if (fpsHistory.length === 0) {
+                alert('暂无数据可导出，请先运行测试收集一些帧率数据。');
+                return;
+            }
+
+            // 收集设备信息
+            var device = {
+                browser: document.getElementById('di-browser').textContent,
+                os: document.getElementById('di-os').textContent,
+                gpu: document.getElementById('di-gpu').textContent,
+                cpu: document.getElementById('di-cpu').textContent,
+                ram: document.getElementById('di-ram').textContent,
+                screen: document.getElementById('di-screen').textContent,
+            };
+
+            // 统计信息
+            var stats = {
+                totalFrames: fpsHistory.length,
+                avgFPS: fpsAvgDisplay,
+                minFPS: fpsMinDisplay,
+                maxFPS: Math.max(...fpsHistory),
+            };
+
+            // 构建CSV
+            var lines = [];
+            // 注释行：设备信息
+            lines.push('# 毒蘑菇性能测试导出数据');
+            lines.push('# 导出时间: ' + new Date().toLocaleString());
+            lines.push('# 设备信息: ' + JSON.stringify(device));
+            lines.push('# 统计: 总帧数=' + stats.totalFrames + ', 平均=' + stats.avgFPS.toFixed(2) + ', 最低=' + stats.minFPS
+                .toFixed(2) + ', 最高=' + stats.maxFPS.toFixed(2));
+            lines.push('# 帧序号, FPS');
+            // 数据行
+            for (var i = 0; i < fpsHistory.length; i++) {
+                lines.push((i + 1) + ', ' + fpsHistory[i].toFixed(2));
+            }
+
+            var csvContent = lines.join('\n');
+            var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            var link = document.createElement('a');
+            var url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', '毒蘑菇性能数据_' + new Date().toISOString().slice(0, 19).replace(/[:-]/g, '') +
+                '.csv');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        // 绑定导出按钮
+        exportBtn.addEventListener('click', exportData);
+
+        // ============================================================
+        //  主循环
+        // ============================================================
+
+        var lastPerfTime = performance.now();
+        var mainPerfCount = 0;
+
+        function mainLoop(timestamp) {
+            draw();
+            mainPerfCount++;
+            var now = performance.now();
+            var delta = now - lastPerfTime;
+            if (delta >= 500) {
+                var fps = mainPerfCount / (delta / 1000);
+                updateFPS(fps);
+                mainPerfCount = 0;
+                lastPerfTime = now;
+            }
+            window.requestAnimationFrame(mainLoop);
+        }
+
+        // ============================================================
+        //  启动
+        // ============================================================
+
+        window.onresize = function() {
+            cx = document.body.clientWidth;
+            cy = document.body.clientHeight;
+            if (cx > cy) cx = cy;
+            else cy = cx;
+            var mainEl = document.getElementById('main');
+            mainEl.style.width = 1024 + 'px';
+            mainEl.style.height = 1024 + 'px';
+            mainEl.style.transform = 'scale(' + cx / 1024 + ',' + cy / 1024 + ')';
+            resizeChart();
+        };
+
+        window.onload = function() {
+            cx = document.body.clientWidth;
+            cy = document.body.clientHeight;
+            if (cx > cy) cx = cy;
+            else cy = cx;
+            var mainEl = document.getElementById('main');
+            mainEl.style.width = 1024 + 'px';
+            mainEl.style.height = 1024 + 'px';
+            mainEl.style.transform = 'scale(' + cx / 1024 + ',' + cy / 1024 + ')';
+
+            // ---- WebGL 初始化 ----
+            var positions = [-1.0, -1.0, 0.0, 1.0, -1.0, 0.0, 1.0, 1.0, 0.0, -1.0, -1.0, 0.0, 1.0, 1.0, 0.0, -1.0, 1.0, 0.0];
+
+            var VSHADER_SOURCE =
+                "#version 100 \n" +
+                "precision highp float;\n" +
+                "attribute vec4 position;" +
+                "varying vec3 dir, localdir;" +
+                "uniform vec3 right, forward, up, origin;" +
+                "uniform float x,y;" +
+                "void main() {" +
+                "   gl_Position = position; " +
+                "   dir = forward + right * position.x*x + up * position.y*y;" +
+                "   localdir.x = position.x*x;" +
+                "   localdir.y = position.y*y;" +
+                "   localdir.z = -1.0;" +
+                "} ";
+
+            var FSHADER_SOURCE =
+                "#version 100 \n" +
+                "#define PI 3.14159265358979324\n" +
+                "#define M_L 0.3819660113\n" +
+                "#define M_R 0.6180339887\n" +
+                "#define MAXR 8\n" +
+                "#define SOLVER 8\n" +
+                "precision highp float;\n" +
+                "float kernal(vec3 ver)\n;" +
+                "uniform vec3 right, forward, up, origin;\n" +
+                "varying vec3 dir, localdir;\n" +
+                "uniform float len;\n" +
+                "vec3 ver;\n" +
+                "int sign;" +
+                "float v, v1, v2;\n" +
+                "float r1, r2, r3, r4, m1, m2, m3, m4;\n" +
+                "vec3 n, reflect;\n" +
+                "const float step = 0.002;\n" +
+                "vec3 color;\n" +
+                "void main() {\n" +
+                "   color.r=0.0;\n" +
+                "   color.g=0.0;\n" +
+                "   color.b=0.0;\n" +
+                "   sign=0;" +
+                "   v1 = kernal(origin + dir * (step*len));\n" +
+                "   v2 = kernal(origin);\n" +
+                "   for (int k = 2; k < 1002; k++) {\n" +
+                "      ver = origin + dir * (step*len*float(k));\n" +
+                "      v = kernal(ver);\n" +
+                "      if (v > 0.0 && v1 < 0.0) {\n" +
+                "         r1 = step * len*float(k - 1);\n" +
+                "         r2 = step * len*float(k);\n" +
+                "         m1 = kernal(origin + dir * r1);\n" +
+                "         m2 = kernal(origin + dir * r2);\n" +
+                "         for (int l = 0; l < SOLVER; l++) {\n" +
+                "            r3 = r1 * 0.5 + r2 * 0.5;\n" +
+                "            m3 = kernal(origin + dir * r3);\n" +
+                "            if (m3 > 0.0) {\n" +
+                "               r2 = r3;\n" +
+                "               m2 = m3;\n" +
+                "            }\n" +
+                "            else {\n" +
+                "               r1 = r3;\n" +
+                "               m1 = m3;\n" +
+                "            }\n" +
+                "         }\n" +
+                "         if (r3 < 2.0 * len) {\n" +
+                "               sign=1;" +
+                "            break;\n" +
+                "         }\n" +
+                "      }\n" +
+                "      if (v < v1&&v1>v2&&v1 < 0.0 && (v1*2.0 > v || v1 * 2.0 > v2)) {\n" +
+                "         r1 = step * len*float(k - 2);\n" +
+                "         r2 = step * len*(float(k) - 2.0 + 2.0*M_L);\n" +
+                "         r3 = step * len*(float(k) - 2.0 + 2.0*M_R);\n" +
+                "         r4 = step * len*float(k);\n" +
+                "         m2 = kernal(origin + dir * r2);\n" +
+                "         m3 = kernal(origin + dir * r3);\n" +
+                "         for (int l = 0; l < MAXR; l++) {\n" +
+                "            if (m2 > m3) {\n" +
+                "               r4 = r3;\n" +
+                "               r3 = r2;\n" +
+                "               r2 = r4 * M_L + r1 * M_R;\n" +
+                "               m3 = m2;\n" +
+                "               m2 = kernal(origin + dir * r2);\n" +
+                "            }\n" +
+                "            else {\n" +
+                "               r1 = r2;\n" +
+                "               r2 = r3;\n" +
+                "               r3 = r4 * M_R + r1 * M_L;\n" +
+                "               m2 = m3;\n" +
+                "               m3 = kernal(origin + dir * r3);\n" +
+                "            }\n" +
+                "         }\n" +
+                "         if (m2 > 0.0) {\n" +
+                "            r1 = step * len*float(k - 2);\n" +
+                "            r2 = r2;\n" +
+                "            m1 = kernal(origin + dir * r1);\n" +
+                "            m2 = kernal(origin + dir * r2);\n" +
+                "            for (int l = 0; l < SOLVER; l++) {\n" +
+                "               r3 = r1 * 0.5 + r2 * 0.5;\n" +
+                "               m3 = kernal(origin + dir * r3);\n" +
+                "               if (m3 > 0.0) {\n" +
+                "                  r2 = r3;\n" +
+                "                  m2 = m3;\n" +
+                "               }\n" +
+                "               else {\n" +
+                "                  r1 = r3;\n" +
+                "                  m1 = m3;\n" +
+                "               }\n" +
+                "            }\n" +
+                "            if (r3 < 2.0 * len&&r3> step*len) {\n" +
+                "                   sign=1;" +
+                "               break;\n" +
+                "            }\n" +
+                "         }\n" +
+                "         else if (m3 > 0.0) {\n" +
+                "            r1 = step * len*float(k - 2);\n" +
+                "            r2 = r3;\n" +
+                "            m1 = kernal(origin + dir * r1);\n" +
+                "            m2 = kernal(origin + dir * r2);\n" +
+                "            for (int l = 0; l < SOLVER; l++) {\n" +
+                "               r3 = r1 * 0.5 + r2 * 0.5;\n" +
+                "               m3 = kernal(origin + dir * r3);\n" +
+                "               if (m3 > 0.0) {\n" +
+                "                  r2 = r3;\n" +
+                "                  m2 = m3;\n" +
+                "               }\n" +
+                "               else {\n" +
+                "                  r1 = r3;\n" +
+                "                  m1 = m3;\n" +
+                "               }\n" +
+                "            }\n" +
+                "            if (r3 < 2.0 * len&&r3> step*len) {\n" +
+                "                   sign=1;" +
+                "               break;\n" +
+                "            }\n" +
+                "         }\n" +
+                "      }\n" +
+                "      v2 = v1;\n" +
+                "      v1 = v;\n" +
+                "   }\n" +
+                "   if (sign==1) {\n" +
+                "      ver = origin + dir*r3 ;\n" +
+                "       r1=ver.x*ver.x+ver.y*ver.y+ver.z*ver.z;" +
+                "      n.x = kernal(ver - right * (r3*0.00025)) - kernal(ver + right * (r3*0.00025));\n" +
+                "      n.y = kernal(ver - up * (r3*0.00025)) - kernal(ver + up * (r3*0.00025));\n" +
+                "      n.z = kernal(ver + forward * (r3*0.00025)) - kernal(ver - forward * (r3*0.00025));\n" +
+                "      r3 = n.x*n.x+n.y*n.y+n.z*n.z;\n" +
+                "      n = n * (1.0 / sqrt(r3));\n" +
+                "      ver = localdir;\n" +
+                "      r3 = ver.x*ver.x+ver.y*ver.y+ver.z*ver.z;\n" +
+                "      ver = ver * (1.0 / sqrt(r3));\n" +
+                "      reflect = n * (-2.0*dot(ver, n)) + ver;\n" +
+                "      r3 = reflect.x*0.276+reflect.y*0.920+reflect.z*0.276;\n" +
+                "      r4 = n.x*0.276+n.y*0.920+n.z*0.276;\n" +
+                "      r3 = max(0.0,r3);\n" +
+                "      r3 = r3 * r3*r3*r3;\n" +
+                "      r3 = r3 * 0.45 + r4 * 0.25 + 0.3;\n" +
+                "      n.x = sin(r1*10.0)*0.5+0.5;\n" +
+                "      n.y = sin(r1*10.0+2.05)*0.5+0.5;\n" +
+                "      n.z = sin(r1*10.0-2.05)*0.5+0.5;\n" +
+                "      color = n*r3;\n" +
+                "   }\n" +
+                "   gl_FragColor = vec4(color.x, color.y, color.z, 1.0);" +
+                "}";
+
+            canvas = document.getElementById('c1');
+            gl = canvas.getContext('webgl');
+
+            vertshade = gl.createShader(gl.VERTEX_SHADER);
+            fragshader = gl.createShader(gl.FRAGMENT_SHADER);
+            shaderProgram = gl.createProgram();
+
+            gl.shaderSource(vertshade, VSHADER_SOURCE);
+            gl.compileShader(vertshade);
+            var infov = gl.getShaderInfoLog(vertshade);
+
+            gl.shaderSource(fragshader, FSHADER_SOURCE + KERNEL);
+            gl.compileShader(fragshader);
+            var infof = gl.getShaderInfoLog(fragshader);
+
+            gl.attachShader(shaderProgram, vertshade);
+            gl.attachShader(shaderProgram, fragshader);
+            gl.linkProgram(shaderProgram);
+            gl.useProgram(shaderProgram);
+
+            if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+                var info = gl.getProgramInfoLog(shaderProgram);
+                throw 'WebGL 编译失败: \n' + infov + infof + info;
+            }
+
+            glposition = gl.getAttribLocation(shaderProgram, 'position');
+            glright = gl.getUniformLocation(shaderProgram, 'right');
+            glforward = gl.getUniformLocation(shaderProgram, 'forward');
+            glup = gl.getUniformLocation(shaderProgram, 'up');
+            glorigin = gl.getUniformLocation(shaderProgram, 'origin');
+            glx = gl.getUniformLocation(shaderProgram, 'x');
+            gly = gl.getUniformLocation(shaderProgram, 'y');
+            gllen = gl.getUniformLocation(shaderProgram, 'len');
+
+            var buffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+            gl.vertexAttribPointer(glposition, 3, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(glposition);
+            gl.viewport(0, 0, 1024, 1024);
+
+            // ---- 曲线图 ----
+            setTimeout(resizeChart, 50);
+            setTimeout(resizeChart, 200);
+
+            // ---- 设备信息 ----
+            collectDeviceInfo();
+
+            // ---- CONFIG ----
+            document.getElementById("kernel").value = KERNEL;
+            document.getElementById("btn").addEventListener("click", function() {
+                var state = this.innerText == "⚙ CONFIG";
+                this.innerText = state ? "✕ 隐藏" : "⚙ CONFIG";
+                document.getElementById("config").style.display = state ? "inline" : "none";
+            });
+            document.getElementById("apply").addEventListener("click", function() {
+                KERNEL = document.getElementById("kernel").value;
+                gl.shaderSource(fragshader, FSHADER_SOURCE + KERNEL);
+                gl.compileShader(fragshader);
+                var infof = gl.getShaderInfoLog(fragshader);
+                gl.linkProgram(shaderProgram);
+                gl.useProgram(shaderProgram);
+                if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+                    var info = gl.getProgramInfoLog(shaderProgram);
+                    alert(infof + info);
+                }
+                glposition = gl.getAttribLocation(shaderProgram, 'position');
+                glright = gl.getUniformLocation(shaderProgram, 'right');
+                glforward = gl.getUniformLocation(shaderProgram, 'forward');
+                glup = gl.getUniformLocation(shaderProgram, 'up');
+                glorigin = gl.getUniformLocation(shaderProgram, 'origin');
+                glx = gl.getUniformLocation(shaderProgram, 'x');
+                gly = gl.getUniformLocation(shaderProgram, 'y');
+                gllen = gl.getUniformLocation(shaderProgram, 'len');
+                resetStats();
+            });
+            document.getElementById("cancle").addEventListener("click", function() {
+                document.getElementById("kernel").value = KERNEL;
+            });
+
+            // ---- 启动主循环 ----
+            lastPerfTime = performance.now();
+            mainPerfCount = 0;
+            window.requestAnimationFrame(mainLoop);
+
+            window.addEventListener('resize', function() {
+                resizeChart();
+            });
+
+            console.log('🍄 毒蘑菇性能测试 · 导出功能已就绪');
+        };
+    </script>
+</body>
+</html>
